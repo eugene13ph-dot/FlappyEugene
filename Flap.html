@@ -9,12 +9,102 @@
             margin: 0;
             padding: 0;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             background: linear-gradient(to bottom, #4ec0ca 0%, #87ceeb 100%);
             font-family: 'Arial', sans-serif;
             overflow: hidden;
+        }
+        
+        #uploadSection {
+            margin-bottom: 20px;
+            text-align: center;
+            padding: 10px;
+        }
+        
+        #uploadBtn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #cc5555;
+            transition: transform 0.1s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        #uploadBtn:hover {
+            background: #ff5252;
+        }
+        
+        #uploadBtn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #cc5555;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        @media (max-width: 600px) {
+            #uploadBtn {
+                padding: 18px 40px;
+                font-size: 22px;
+            }
+            
+            canvas {
+                max-width: 95vw;
+                height: auto;
+            }
+            
+            #gameContainer {
+                max-width: 95vw;
+            }
+        }
+        
+        #uploadStatus {
+            color: white;
+            margin-top: 10px;
+            font-size: 16px;
+            text-shadow: 2px 2px 2px rgba(0,0,0,0.5);
+        }
+        
+        #soundControls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 25;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .soundBtn {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .soundBtn:active {
+            transform: scale(0.9);
+        }
+        
+        .soundBtn.muted {
+            opacity: 0.5;
         }
         
         #gameContainer {
@@ -105,8 +195,18 @@
     </style>
 </head>
 <body>
+    <div id="uploadSection">
+        <input type="file" id="fileInput" accept="image/*" capture="environment">
+        <button id="uploadBtn">📷 Upload/Take Photo</button>
+        <div id="uploadStatus"></div>
+    </div>
+    
     <div id="gameContainer">
         <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="soundControls">
+            <button class="soundBtn" id="musicBtn" title="Toggle Music">🎵</button>
+            <button class="soundBtn" id="sfxBtn" title="Toggle SFX">🔊</button>
+        </div>
         <div id="score">0</div>
         <div id="instructions">
             Tap or Press Space to Flap!
@@ -128,6 +228,110 @@
         const bestScoreSpan = document.getElementById('bestScore');
         const restartBtn = document.getElementById('restartBtn');
         const instructions = document.getElementById('instructions');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const musicBtn = document.getElementById('musicBtn');
+        const sfxBtn = document.getElementById('sfxBtn');
+
+        // Sound settings
+        let musicEnabled = true;
+        let sfxEnabled = true;
+        
+        // Audio context for sound generation
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        // Background music (simple melody loop)
+        let musicInterval = null;
+        
+        function playNote(frequency, duration, type = 'sine') {
+            if (!musicEnabled && type === 'sine') return;
+            if (!sfxEnabled && type !== 'sine') return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+        
+        // Background music melody
+        const melody = [
+            {note: 523.25, duration: 0.2}, // C5
+            {note: 659.25, duration: 0.2}, // E5
+            {note: 783.99, duration: 0.2}, // G5
+            {note: 659.25, duration: 0.2}, // E5
+            {note: 523.25, duration: 0.2}, // C5
+            {note: 587.33, duration: 0.2}, // D5
+            {note: 659.25, duration: 0.4}, // E5
+        ];
+        
+        let melodyIndex = 0;
+        
+        function playBackgroundMusic() {
+            if (musicEnabled && gameActive) {
+                const note = melody[melodyIndex];
+                playNote(note.note, note.duration, 'sine');
+                melodyIndex = (melodyIndex + 1) % melody.length;
+            }
+        }
+        
+        function startMusic() {
+            if (musicInterval) clearInterval(musicInterval);
+            musicInterval = setInterval(playBackgroundMusic, 300);
+        }
+        
+        function stopMusic() {
+            if (musicInterval) {
+                clearInterval(musicInterval);
+                musicInterval = null;
+            }
+        }
+        
+        // Sound effects
+        function playFlapSound() {
+            playNote(800, 0.1, 'square');
+        }
+        
+        function playScoreSound() {
+            playNote(1000, 0.15, 'triangle');
+            setTimeout(() => playNote(1200, 0.15, 'triangle'), 100);
+        }
+        
+        function playHitSound() {
+            playNote(200, 0.3, 'sawtooth');
+        }
+        
+        function playGameOverSound() {
+            playNote(400, 0.2, 'sawtooth');
+            setTimeout(() => playNote(300, 0.2, 'sawtooth'), 150);
+            setTimeout(() => playNote(200, 0.4, 'sawtooth'), 300);
+        }
+        
+        // Toggle buttons
+        musicBtn.addEventListener('click', () => {
+            musicEnabled = !musicEnabled;
+            musicBtn.classList.toggle('muted', !musicEnabled);
+            musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
+            if (!musicEnabled) stopMusic();
+            else if (gameActive) startMusic();
+        });
+        
+        sfxBtn.addEventListener('click', () => {
+            sfxEnabled = !sfxEnabled;
+            sfxBtn.classList.toggle('muted', !sfxEnabled);
+            sfxBtn.textContent = sfxEnabled ? '🔊' : '🔇';
+        });
 
         // Game variables
         let bird = {
@@ -138,7 +342,7 @@
             velocity: 0,
             gravity: 0.5,
             jump: -9,
-            radius: 22 // Collision radius
+            radius: 22
         };
 
         let pipes = [];
@@ -154,27 +358,31 @@
         
         birdImg.onload = function() {
             imageLoaded = true;
+            uploadStatus.textContent = '✓ Image loaded!';
+            uploadStatus.style.color = '#4ecdc4';
         };
         
-        // Convert uploaded image to base64
-        async function loadImageFromFile() {
-            try {
-                const files = await window.fs.readdir('/');
-                for (const file of files) {
-                    if (file.match(/\.(jpg|jpeg|png|gif)$/i)) {
-                        const data = await window.fs.readFile('/' + file);
-                        const blob = new Blob([data], { type: 'image/jpeg' });
-                        const url = URL.createObjectURL(blob);
-                        birdImg.src = url;
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.log('No uploaded image found, using fallback');
-            }
-        }
+        birdImg.onerror = function() {
+            uploadStatus.textContent = '✗ Failed to load image';
+            uploadStatus.style.color = '#ff6b6b';
+        };
 
-        loadImageFromFile();
+        // Handle file upload
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    birdImg.src = event.target.result;
+                    uploadStatus.textContent = 'Loading image...';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
 
         bestScoreSpan.textContent = bestScore;
 
@@ -187,7 +395,7 @@
             ctx.rotate(rotation);
             
             if (imageLoaded && birdImg.complete && birdImg.naturalWidth > 0) {
-                // Draw the image with rounded corners effect
+                // Draw the image in a circle
                 ctx.beginPath();
                 ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
                 ctx.clip();
@@ -235,7 +443,7 @@
             bird.velocity += bird.gravity;
             bird.y += bird.velocity;
 
-            // Ground collision with more precise boundary
+            // Ground collision
             if (bird.y + bird.radius >= canvas.height - 50) {
                 endGame();
             }
@@ -295,6 +503,7 @@
                     pipe.scored = true;
                     score++;
                     scoreDisplay.textContent = score;
+                    playScoreSound();
                 }
 
                 // Remove off-screen pipes
@@ -314,9 +523,11 @@
                 gameStarted = true;
                 gameActive = true;
                 instructions.style.display = 'none';
+                startMusic();
             }
             if (gameActive) {
                 bird.velocity = bird.jump;
+                playFlapSound();
             }
         }
 
@@ -324,6 +535,9 @@
             if (!gameActive) return;
             
             gameActive = false;
+            stopMusic();
+            playHitSound();
+            setTimeout(playGameOverSound, 200);
             
             if (score > bestScore) {
                 bestScore = score;
@@ -346,6 +560,8 @@
             scoreDisplay.textContent = '0';
             gameOverDiv.style.display = 'none';
             instructions.style.display = 'block';
+            stopMusic();
+            melodyIndex = 0;
         }
 
         function gameLoop() {
@@ -388,4 +604,4 @@
         gameLoop();
     </script>
 </body>
-</html>
+    </html>
