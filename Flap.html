@@ -116,6 +116,19 @@
             display: block;
             border: 3px solid #333;
             background: linear-gradient(to bottom, #4ec0ca 0%, #ded895 100%);
+            transition: background 1s ease;
+        }
+        
+        canvas.sunset {
+            background: linear-gradient(to bottom, #ff6b6b 0%, #ffa07a 50%, #ffe4b5 100%);
+        }
+        
+        canvas.night {
+            background: linear-gradient(to bottom, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+        
+        canvas.space {
+            background: linear-gradient(to bottom, #000000 0%, #1a0033 50%, #330066 100%);
         }
         
         #score {
@@ -265,16 +278,47 @@
             oscillator.stop(audioCtx.currentTime + duration);
         }
         
-        // Background music melody
-        const melody = [
-            {note: 523.25, duration: 0.2}, // C5
-            {note: 659.25, duration: 0.2}, // E5
-            {note: 783.99, duration: 0.2}, // G5
-            {note: 659.25, duration: 0.2}, // E5
-            {note: 523.25, duration: 0.2}, // C5
-            {note: 587.33, duration: 0.2}, // D5
-            {note: 659.25, duration: 0.4}, // E5
-        ];
+        // Background music melody with variations
+        const melodies = {
+            day: [
+                {note: 523.25, duration: 0.2}, // C5
+                {note: 659.25, duration: 0.2}, // E5
+                {note: 783.99, duration: 0.2}, // G5
+                {note: 659.25, duration: 0.2}, // E5
+                {note: 523.25, duration: 0.2}, // C5
+                {note: 587.33, duration: 0.2}, // D5
+                {note: 659.25, duration: 0.4}, // E5
+            ],
+            sunset: [
+                {note: 440.00, duration: 0.2}, // A4
+                {note: 554.37, duration: 0.2}, // C#5
+                {note: 659.25, duration: 0.2}, // E5
+                {note: 554.37, duration: 0.2}, // C#5
+                {note: 440.00, duration: 0.2}, // A4
+                {note: 493.88, duration: 0.2}, // B4
+                {note: 554.37, duration: 0.4}, // C#5
+            ],
+            night: [
+                {note: 349.23, duration: 0.3}, // F4
+                {note: 440.00, duration: 0.3}, // A4
+                {note: 523.25, duration: 0.3}, // C5
+                {note: 440.00, duration: 0.3}, // A4
+                {note: 349.23, duration: 0.3}, // F4
+                {note: 392.00, duration: 0.3}, // G4
+                {note: 440.00, duration: 0.5}, // A4
+            ],
+            space: [
+                {note: 261.63, duration: 0.25}, // C4
+                {note: 329.63, duration: 0.25}, // E4
+                {note: 392.00, duration: 0.25}, // G4
+                {note: 523.25, duration: 0.25}, // C5
+                {note: 392.00, duration: 0.25}, // G4
+                {note: 329.63, duration: 0.25}, // E4
+                {note: 261.63, duration: 0.5},  // C4
+            ]
+        };
+        
+        let melody = melodies.day;
         
         let melodyIndex = 0;
         
@@ -288,7 +332,80 @@
         
         function startMusic() {
             if (musicInterval) clearInterval(musicInterval);
-            musicInterval = setInterval(playBackgroundMusic, 300);
+            musicInterval = setInterval(playBackgroundMusic, musicSpeed);
+        }
+        
+        function changeTheme(newTheme) {
+            if (currentTheme === newTheme) return;
+            
+            currentTheme = newTheme;
+            canvas.className = newTheme === 'day' ? '' : newTheme;
+            melody = melodies[newTheme];
+            melodyIndex = 0;
+            
+            // Adjust music speed based on theme
+            const speeds = {day: 300, sunset: 280, night: 350, space: 250};
+            musicSpeed = speeds[newTheme];
+            
+            if (musicInterval) {
+                stopMusic();
+                startMusic();
+            }
+            
+            // Play milestone fanfare
+            playMilestoneFanfare();
+        }
+        
+        function playMilestoneFanfare() {
+            if (!sfxEnabled) return;
+            
+            setTimeout(() => playNote(523.25, 0.15, 'sine'), 0);
+            setTimeout(() => playNote(659.25, 0.15, 'sine'), 150);
+            setTimeout(() => playNote(783.99, 0.15, 'sine'), 300);
+            setTimeout(() => playNote(1046.50, 0.3, 'sine'), 450);
+        }
+        
+        function checkMilestones() {
+            if (score === 5 && currentTheme === 'day') {
+                changeTheme('sunset');
+                showMilestoneMessage('🌅 Sunset Mode!');
+            } else if (score === 10 && currentTheme === 'sunset') {
+                changeTheme('night');
+                showMilestoneMessage('🌙 Night Mode!');
+            } else if (score === 20 && currentTheme === 'night') {
+                changeTheme('space');
+                showMilestoneMessage('🚀 Space Mode!');
+            }
+        }
+        
+        function showMilestoneMessage(text) {
+            const msg = document.createElement('div');
+            msg.textContent = text;
+            msg.style.position = 'absolute';
+            msg.style.top = '40%';
+            msg.style.left = '50%';
+            msg.style.transform = 'translate(-50%, -50%)';
+            msg.style.fontSize = '32px';
+            msg.style.fontWeight = 'bold';
+            msg.style.color = 'white';
+            msg.style.textShadow = '3px 3px 6px rgba(0,0,0,0.8)';
+            msg.style.zIndex = '30';
+            msg.style.animation = 'fadeInOut 2s ease';
+            msg.style.pointerEvents = 'none';
+            
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+                    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+                    80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            document.getElementById('gameContainer').appendChild(msg);
+            setTimeout(() => msg.remove(), 2000);
         }
         
         function stopMusic() {
@@ -351,6 +468,8 @@
         let gameStarted = false;
         let gameActive = false;
         let frame = 0;
+        let currentTheme = 'day';
+        let musicSpeed = 300;
 
         // Load image
         const birdImg = new Image();
@@ -424,8 +543,17 @@
         }
 
         function drawPipes() {
-            ctx.fillStyle = '#5cb85c';
-            ctx.strokeStyle = '#2d6b2d';
+            // Theme-based pipe colors
+            const pipeColors = {
+                day: {fill: '#5cb85c', stroke: '#2d6b2d'},
+                sunset: {fill: '#ff8c42', stroke: '#c45500'},
+                night: {fill: '#5865f2', stroke: '#2d3580'},
+                space: {fill: '#9b59b6', stroke: '#5b2c6f'}
+            };
+            
+            const colors = pipeColors[currentTheme];
+            ctx.fillStyle = colors.fill;
+            ctx.strokeStyle = colors.stroke;
             ctx.lineWidth = 3;
             
             pipes.forEach(pipe => {
@@ -504,6 +632,7 @@
                     score++;
                     scoreDisplay.textContent = score;
                     playScoreSound();
+                    checkMilestones();
                 }
 
                 // Remove off-screen pipes
@@ -562,14 +691,35 @@
             instructions.style.display = 'block';
             stopMusic();
             melodyIndex = 0;
+            currentTheme = 'day';
+            canvas.className = '';
+            melody = melodies.day;
+            musicSpeed = 300;
         }
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw ground
-            ctx.fillStyle = '#d4a574';
+            // Draw ground with theme colors
+            const groundColors = {
+                day: '#d4a574',
+                sunset: '#8B4513',
+                night: '#2c3e50',
+                space: '#1a0033'
+            };
+            ctx.fillStyle = groundColors[currentTheme];
             ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+            
+            // Draw stars for night and space themes
+            if (currentTheme === 'night' || currentTheme === 'space') {
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < 50; i++) {
+                    const x = (i * 137.5 + frame * 0.5) % canvas.width;
+                    const y = (i * 97.3) % (canvas.height - 50);
+                    const size = (i % 3) + 1;
+                    ctx.fillRect(x, y, size, size);
+                }
+            }
             
             drawBird();
             drawPipes();
@@ -604,4 +754,4 @@
         gameLoop();
     </script>
 </body>
-                </html>
+</html>
